@@ -4,11 +4,13 @@ import traceback
 import uvicorn
 import ujson
 import numpy as np
-from fastapi import FastAPI, File, UploadFile
+from fastapi import FastAPI, File, UploadFile, Depends, Form
 from typing import Dict, List
 
 from nomeroff_net import pipeline
 from nomeroff_net.tools import unzip
+from uuid import UUID
+
 
 number_plate_detection_and_reading = pipeline("number_plate_detection_and_reading")
 
@@ -25,9 +27,12 @@ async def say_hello(name: str):
     return {"message": f"Hello {name}"}
 
 
-@app.post('/detect_from_bytes')
-def detect_from_bytes(files: List[UploadFile] = File(...)):
+@app.post('/define_from_bytes')
+def detect_from_bytes(client: UUID = Form(...), files: List[UploadFile] = File(...)):
     images = []
+
+    print(client)
+
     for file in files:
         try:
             img = cv2.imdecode(np.frombuffer(file.file.read(), dtype=np.uint8), 1)
@@ -50,4 +55,4 @@ def detect_from_bytes(files: List[UploadFile] = File(...)):
 
 
 if __name__ == '__main__':
-   uvicorn.run(app, host='127.0.0.1', port=8001)
+   uvicorn.run(app, host='127.0.0.1', port=8001, log_level="error")
