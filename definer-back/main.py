@@ -28,31 +28,23 @@ async def say_hello(name: str):
 
 
 @app.post('/define_from_bytes')
-def detect_from_bytes(client: UUID = Form(...), files: List[UploadFile] = File(...)):
-    images = []
+async def detect_from_bytes(id: UUID = Form(...), file: UploadFile = File(...)):
 
-    print(client)
-
-    for file in files:
-        try:
-            img = cv2.imdecode(np.frombuffer(file.file.read(), dtype=np.uint8), 1)
-            images.append(img[:, :, ::-1])
-        except Exception:
-            return ujson.dumps({"error": "There was an error uploading the file(s)"})
-        finally:
-            file.file.close()
     try:
-        result = number_plate_detection_and_reading(images)
+        nparr = np.frombuffer(await file.read(), np.uint8)
+        image = cv2.imdecode(nparr, cv2.IMREAD_COLOR)
+        result = number_plate_detection_and_reading([image])
         (images, images_bboxs,
          images_points, images_zones, region_ids,
          region_names, count_lines,
          confidences, texts) = unzip(result)
+        print(ujson.dumps(dict(res=texts)))
         return ujson.dumps(dict(res=texts))
-    except Exception as e:
-        exc_type, exc_value, exc_tb = sys.exc_info()
-        traceback.print_exception(exc_type, exc_value, exc_tb)
-        return ujson.dumps(dict(error=str(e)))
+    except Exception:
+        return ujson.dumps({"error": "There was an error uploading the file(s)"})
+    finally:
+        file.file.close()
 
 
 if __name__ == '__main__':
-   uvicorn.run(app, host='127.0.0.1', port=8001, log_level="error")
+   uvicorn.run(app, host='127.0.0.1', port=8001)
