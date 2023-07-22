@@ -1,11 +1,15 @@
 import cv2
 import sys
 import traceback
+
+import numpy
 import uvicorn
 import ujson
 import numpy as np
 from fastapi import FastAPI, File, UploadFile, Depends, Form
 from typing import Dict, List
+
+from starlette.responses import JSONResponse
 
 from nomeroff_net import pipeline
 from nomeroff_net.tools import unzip
@@ -16,6 +20,7 @@ number_plate_detection_and_reading = pipeline("number_plate_detection_and_readin
 
 
 app = FastAPI()
+
 
 @app.get("/")
 async def root():
@@ -33,14 +38,26 @@ async def detect_from_bytes(id: UUID = Form(...), file: UploadFile = File(...)):
     try:
         nparr = np.frombuffer(await file.read(), np.uint8)
         image = cv2.imdecode(nparr, cv2.IMREAD_COLOR)
-        result = number_plate_detection_and_reading([image])
+        results = number_plate_detection_and_reading([image])
         (images, images_bboxs,
          images_points, images_zones, region_ids,
          region_names, count_lines,
-         confidences, texts) = unzip(result)
-        print(ujson.dumps(dict(res=texts)))
-        return ujson.dumps(dict(res=texts))
-    except Exception:
+         confidences, texts) = unzip(results)
+        image_point, text = images_points[0], texts[0]
+        if len(image_point):
+            lb_x, lb_y = image_point[0][0]
+            # rb_x, rb_y = image_point[0][1]
+            rt_x, rt_y = image_point[0][2]
+            # lt_x, lt_y = image_point[0][3]
+            result = {
+                "lb_x": int(lb_x), "lb_y": int(lb_y),
+                "rt_x": int(rt_x), "rt_y": int(rt_y),
+                "text": text[0]
+            }
+        else:
+            result = {}
+        return JSONResponse(content=result)
+    except ValueError:
         return ujson.dumps({"error": "There was an error uploading the file(s)"})
     finally:
         file.file.close()

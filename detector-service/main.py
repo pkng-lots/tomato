@@ -23,7 +23,7 @@ def convert_image_to_bytes(image: numpy.array) -> bytes:
     return encoded.tobytes()
 
 
-def post_cropped_frame(url: str, frame: numpy.array, box: list, id: UUID) -> None:
+def get_lp_from_definer(url: str, frame: numpy.array, box: list, id: UUID) -> dict:
     try:
         cropped = frame[box[1]: box[3], box[0]: box[2]]
         response = requests.post(
@@ -31,17 +31,16 @@ def post_cropped_frame(url: str, frame: numpy.array, box: list, id: UUID) -> Non
             data={"id": str(id)},
             files={"file": convert_image_to_bytes(cropped)},
         )
-        print(
-            json.dumps(response.json(), indent=2)
-        ) if response.status_code == 200 else logging.error(
-            json.dumps(response.json(), indent=2)
-        )
+        return response.json() \
+            if response.status_code == 200 else logging.error(
+                json.dumps(response.json(), indent=2)
+            )
     except:
         logging.exception("Detected image uploading error")
 
 
-def detect_cars_from_sources(source: str, id: UUID, min_area: int, skip_frames: int, show_debug: bool,
-                             recognition_service: str) -> None:
+def detect_and_define_cars_from_source(source: str, id: UUID, min_area: int, skip_frames: int, show_debug: bool,
+                                       recognition_service: str) -> None:
     """
 
     :param source:
@@ -70,24 +69,43 @@ def detect_cars_from_sources(source: str, id: UUID, min_area: int, skip_frames: 
 
         results = model.track(frame, persist=True)
         h, w, _ = frame.shape
-        boxes = results[0].boxes.xyxy.cpu().numpy().astype(int)
-        ids = results[0].boxes.id.cpu().numpy().astype(int)
-        for box, box_id in zip(boxes, ids):
-            if box[2] * box[3] / (h * w) * 100 >= min_area:
-                res_color = MIN_AREA_COLOR
-                post_cropped_frame(recognition_service, frame, box, id)
-                # crop_images.append(frame[box[1]:box[3], box[0]:box[2]])
-                # cv2.imshow('crop', crop_images[-1])
-            else:
-                res_color = LESS_AREA_COLOR
-            cv2.rectangle(frame, (box[0], box[1]), (box[2], box[3]), res_color, 1)
-            cv2.putText(frame, f"box_id {box_id}", (box[0], box[1] - 5), cv2.FONT_HERSHEY_SIMPLEX, 0.5, res_color, 1)
+        try:
+            boxes = results[0].boxes.xyxy.cpu().numpy().astype(int)
+            ids = results[0].boxes.id.cpu().numpy().astype(int)
+            for box, box_id in zip(boxes, ids):
+                if (box[2] - box[0]) * (box[3] - box[1]) / (h * w) * 100 >= min_area:
+                    res_color = MIN_AREA_COLOR
+                    result = get_lp_from_definer(recognition_service, frame, box, id)
+                    if result and result.get('text'):
+                        cv2.rectangle(frame,
+                                      (result['lb_x'] + box[0], result['lb_y'] + box[1]),
+                                      (result['rt_x'] + box[0], result['rt_y'] + box[1]),
+                                      res_color, 2)
+                        cv2.putText(frame, f"{result['text']}",
+                                    (result['lb_x'] + box[0], result['rt_y'] + box[1] - 5),
+                                    cv2.FONT_HERSHEY_SIMPLEX, (result['lb_y'] - result['rt_y']) / 50, res_color, 1)
 
-        if show_debug:
-            cv2.imshow(source, frame)
+                    # crop_images.append(frame[box[1]:box[3], box[0]:box[2]])
+                    # cv2.imshow('crop', crop_images[-1])
+                else:
+                    res_color = LESS_AREA_COLOR
+                if show_debug:
+                    cv2.rectangle(frame, (box[0], box[1]), (box[2], box[3]), res_color, 1)
+                    cv2.putText(frame, f"box_id {box_id}", (box[0], box[1] - 5),
+                                cv2.FONT_HERSHEY_SIMPLEX, (box[2] - box[0]) / 300, res_color, 1)
 
-        if cv2.waitKey(1) == KEYCODE_ESCAPE:
-            break
+            if show_debug:
+                # down_points = (1920, 1080)
+                # resized = cv2.resize(frame, down_points, interpolation=cv2.INTER_LINEAR)
+
+                # cv2.imshow(source, resized)
+                cv2.imshow(source, frame)
+
+            if cv2.waitKey(1) == KEYCODE_ESCAPE:
+                break
+
+        except:
+            pass
 
     cap.release()
     cv2.destroyAllWindows()
@@ -108,5 +126,5 @@ if __name__ == '__main__':
 
     args = parser.parse_args()
 
-    detect_cars_from_sources(args.source, UUID(args.id), args.min_area, args.skip_frames, args.show_debug,
-                             args.recognition_service)
+    detect_and_define_cars_from_source(args.source, UUID(args.id), args.min_area, args.skip_frames, args.show_debug,
+                                       args.recognition_service)
