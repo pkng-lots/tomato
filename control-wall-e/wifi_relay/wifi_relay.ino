@@ -15,13 +15,15 @@ const char* password = "123456789aA";
 // The port to listen for incoming TCP connections 
 #define LISTEN_PORT           80
 
-// Create an instance of the server
-WiFiServer server(LISTEN_PORT);
+// Create an instance of the webserver
+WiFiServer webserver(LISTEN_PORT);
 
 int ledControl(String command);
 
 void setup(void)
 {  
+  digitalWrite(5, HIGH);
+
   // Start Serial (to use the Serial Monitor)
   Serial.begin(115200);
   
@@ -29,7 +31,7 @@ void setup(void)
   // Set Page title
   rest.title("Relay Control 1");
   // Create On/Off buttons linked to D1 pin (GPIO5) 
-  rest.button(D1);
+  rest.button(5);
 
   // Function to be exposed on REST API
   rest.function("led", ledControl);
@@ -47,8 +49,8 @@ void setup(void)
   Serial.println("");
   Serial.println("WiFi connected");
  
-  // Start the server
-  server.begin();
+  // Start the webserver
+  webserver.begin();
   Serial.println("Server started");
   
   // Print the IP address
@@ -58,7 +60,7 @@ void setup(void)
 
 void loop() {
   // Handle REST calls
-  WiFiClient client = server.available();
+  WiFiClient client = webserver.available();
   
   if (!client) {
     return;
@@ -78,11 +80,11 @@ int ledControl(String command) {
   int state = command.toInt();
   
   // Relay allows current to pass through with low voltage at the input (and vice versa).
-  if (state == 1) {
-    digitalWrite(D1, HIGH);
+  if (state == 0) {
+    digitalWrite(5, HIGH);
   }
   else {
-    digitalWrite(D1, LOW);
+    digitalWrite(5, LOW);
   }
   return 1;
 }
