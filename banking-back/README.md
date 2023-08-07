@@ -10,3 +10,5 @@
 `alembic list_templates`
 
 `alembic init --template async alembic`
+
+`alembic upgrade head`
