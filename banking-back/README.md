@@ -1,3 +1,7 @@
+Запуск сервера
+
+`uvicorn main:app --host 0.0.0.0 --port 80 --reload`
+
 Добавление миграции с кастомным номером ревизии
 
 `alembic revision --autogenerate  -m "create base payments table" --rev-id=1`
