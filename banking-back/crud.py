@@ -21,6 +21,7 @@ def create_dummy(db: Session):
 
 def create_payment(db: Session, command:str, txn_id: int, account:str, sun: decimal):
     db_payment = models.Payment()
+    db_payment.txn_id = 1;
     db.add(db_payment)
     db.commit()
     db.refresh(db_payment)
